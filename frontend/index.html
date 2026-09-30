@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alexa+ · Invoice Radar — Simulated Experience</title>
+<style>
+  :root { --bg:#0b1020; --panel:#141b33; --ring:#3aa0ff; --ring2:#7c5cff; --txt:#eef2ff; --dim:#9aa6c7; --amber:#f5a623; --red:#ff5d5d; --green:#3ddc84; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font-family:-apple-system, "Segoe UI", Roboto, sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; }
+  header { width:100%; max-width:860px; padding:18px 22px 0; display:flex; align-items:center; gap:12px; }
+  .badge { font-size:11px; letter-spacing:.12em; border:1px solid var(--ring); color:var(--ring); border-radius:999px; padding:4px 12px; }
+  .status { margin-left:auto; font-size:12px; color:var(--dim); }
+  .status .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#666; margin-right:6px; }
+  .status.ok .dot { background:var(--green); } .status.bad .dot { background:var(--red); } .status.warn .dot { background:var(--amber); }
+  main { width:100%; max-width:860px; padding:12px 22px 40px; display:flex; flex-direction:column; gap:18px; }
+  .stage { background:var(--panel); border-radius:20px; padding:36px 20px 28px; text-align:center; position:relative; overflow:hidden; }
+  .ring { width:120px; height:120px; margin:0 auto 14px; border-radius:50%; position:relative;
+    background:radial-gradient(circle at 50% 50%, #0e1530 55%, transparent 56%); }
+  .ring::before { content:""; position:absolute; inset:0; border-radius:50%;
+    background:conic-gradient(from 0deg, var(--ring), var(--ring2), var(--ring)); opacity:.25; transition:opacity .3s; }
+  .ring::after { content:""; position:absolute; inset:14px; border-radius:50%; background:#0e1530;
+    box-shadow:inset 0 0 24px rgba(58,160,255,.25); }
+  .stage.listening .ring::before { opacity:1; animation:spin 1.2s linear infinite; }
+  .stage.speaking .ring::before { opacity:.9; animation:pulse 1.6s ease-in-out infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.12); } }
+  .hint { color:var(--dim); font-size:14px; margin:6px 0 16px; }
+  .controls { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  button { cursor:pointer; border:0; border-radius:999px; padding:12px 22px; font-size:15px; font-weight:600; }
+  #talk { background:linear-gradient(135deg, var(--ring), var(--ring2)); color:#fff; }
+  #talk:disabled { opacity:.5; cursor:default; }
+  .ghost { background:transparent; color:var(--dim); border:1px solid #2c3a5e; font-weight:400; padding:10px 16px; font-size:13px; }
+  .row { display:flex; gap:10px; justify-content:center; margin-top:12px; }
+  input[type=text] { flex:1; max-width:420px; background:#0b1020; border:1px solid #2c3a5e; color:var(--txt); border-radius:999px; padding:11px 18px; font-size:14px; }
+  .panel { background:var(--panel); border-radius:16px; padding:16px 18px; }
+  .panel h3 { margin:0 0 10px; font-size:13px; letter-spacing:.1em; color:var(--dim); text-transform:uppercase; }
+  #transcript { display:flex; flex-direction:column; gap:10px; max-height:260px; overflow:auto; }
+  .turn { display:flex; flex-direction:column; gap:2px; }
+  .turn .who { font-size:11px; color:var(--dim); letter-spacing:.08em; text-transform:uppercase; }
+  .turn.you .bubble { align-self:flex-end; background:#223052; }
+  .turn.alexa .bubble { align-self:flex-start; background:#1a2440; border-left:3px solid var(--ring); }
+  .bubble { padding:10px 14px; border-radius:14px; max-width:85%; font-size:14px; line-height:1.45; }
+  #cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:12px; }
+  .card { background:#101830; border:1px solid #223052; border-radius:14px; padding:14px; }
+  .card .id { font-weight:700; font-size:15px; }
+  .card .amt { font-size:22px; margin:6px 0; }
+  .card .meta { font-size:12px; color:var(--dim); }
+  .verdict { display:inline-block; font-size:11px; font-weight:700; letter-spacing:.08em; border-radius:6px; padding:3px 8px; margin-top:8px; }
+  .v-UNPAID { background:rgba(245,166,35,.15); color:var(--amber); border:1px solid var(--amber); }
+  .v-DUPLICATE_CLAIM { background:rgba(255,93,93,.15); color:var(--red); border:1px solid var(--red); }
+  .v-MATCH { background:rgba(61,220,132,.15); color:var(--green); border:1px solid var(--green); }
+  .v-AMOUNT_MISMATCH { background:rgba(255,93,93,.15); color:var(--red); border:1px solid var(--red); }
+  .evidence { font-size:12px; color:var(--dim); margin-top:8px; line-height:1.5; }
+  .empty { color:var(--dim); font-size:14px; }
+  footer { color:var(--dim); font-size:12px; padding:0 22px 30px; max-width:860px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="badge">SIMULATED ALEXA+ EXPERIENCE</span>
+  <span class="status" id="mcpStatus"><span class="dot"></span><span id="mcpText">checking MCP…</span></span>
+</header>
+<main>
+  <section class="stage" id="stage">
+    <div class="ring"></div>
+    <div class="hint" id="hint">Tap the mic and ask — try “Alexa, what’s unpaid?”</div>
+    <div class="controls">
+      <button id="talk">🎙&nbsp; Hold to talk</button>
+    </div>
+    <div class="row">
+      <input type="text" id="typed" placeholder="…or type your request here">
+      <button class="ghost" id="send">Ask</button>
+    </div>
+    <div class="row">
+      <button class="ghost" data-ask="Alexa, what's unpaid?">what’s unpaid?</button>
+      <button class="ghost" data-ask="Alexa, audit this month's invoices">audit my invoices</button>
+      <button class="ghost" data-ask="Alexa, check for duplicate invoices">duplicates?</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h3>Conversation</h3>
+    <div id="transcript"><div class="empty">No requests yet.</div></div>
+  </section>
+
+  <section class="panel">
+    <h3>Invoice cards</h3>
+    <div id="cards"><div class="empty">Cards appear here after an invoice request.</div></div>
+  </section>
+</main>
+<footer>
+  This page simulates the Alexa+ voice experience for the Amazon Developer Hackathon (Alexa+ track).
+  Every invoice answer is read live from the Mermail inbox over MCP — nothing is mocked.
+  Voice input/output uses your browser’s built-in speech APIs; no audio leaves your device.
+</footer>
+
+<script>
+const stage = document.getElementById('stage');
+const hint = document.getElementById('hint');
+const transcript = document.getElementById('transcript');
+const cardsEl = document.getElementById('cards');
+const typed = document.getElementById('typed');
+
+function addTurn(who, text) {
+  const empty = transcript.querySelector('.empty');
+  if (empty) empty.remove();
+  const div = document.createElement('div');
+  div.className = 'turn ' + who;
+  div.innerHTML = `<span class="who">${who === 'you' ? 'You' : 'Alexa+'}</span><span class="bubble"></span>`;
+  div.querySelector('.bubble').textContent = text;
+  transcript.appendChild(div);
+  transcript.scrollTop = transcript.scrollHeight;
+}
+
+function renderCards(cards) {
+  cardsEl.innerHTML = '';
+  if (!cards || !cards.length) { cardsEl.innerHTML = '<div class="empty">No invoice cards for this request.</div>'; return; }
+  for (const c of cards) {
+    const d = document.createElement('div');
+    d.className = 'card';
+    d.innerHTML = `<div class="id"></div><div class="amt"></div><div class="meta"></div>
+      <span class="verdict v-${c.verdict}">${c.verdict.replace(/_/g, ' ')}</span><div class="evidence"></div>`;
+    d.querySelector('.id').textContent = c.invoice_id || '(no id)';
+    d.querySelector('.amt').textContent = (c.amount != null ? c.amount.toLocaleString(undefined, {minimumFractionDigits: 2}) : '—') + ' ' + (c.asset || '');
+    d.querySelector('.meta').textContent = `${c.sender || ''}${c.date ? ' · ' + c.date : ''}`;
+    d.querySelector('.evidence').textContent = c.evidence || '';
+    cardsEl.appendChild(d);
+  }
+}
+
+function speak(text) {
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.02;
+    stage.classList.add('speaking');
+    u.onend = u.onerror = () => stage.classList.remove('speaking');
+    speechSynthesis.speak(u);
+  } catch (e) { /* speech optional; transcript still shows */ }
+}
+
+async function ask(text) {
+  if (!text.trim()) return;
+  addTurn('you', text);
+  hint.textContent = 'Alexa+ is checking your inbox…';
+  stage.classList.add('listening');
+  try {
+    const r = await fetch('/api/ask', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ text }) });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || ('HTTP ' + r.status));
+    addTurn('alexa', data.speech);
+    renderCards(data.cards);
+    speak(data.speech);
+    hint.textContent = 'Tap the mic and ask — try “Alexa, what’s unpaid?”';
+  } catch (e) {
+    addTurn('alexa', 'Sorry — ' + e.message);
+    hint.textContent = 'Something went wrong. Check the MCP status above.';
+  } finally {
+    stage.classList.remove('listening');
+  }
+}
+
+// --- voice input: real browser speech recognition, free, on-device ---
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const talkBtn = document.getElementById('talk');
+if (!SR) {
+  talkBtn.disabled = true;
+  talkBtn.textContent = '🎙 voice not supported here — type instead';
+} else {
+  const rec = new SR();
+  rec.lang = 'en-US'; rec.interimResults = false; rec.maxAlternatives = 1;
+  let recActive = false;
+  const start = (e) => { e.preventDefault(); if (recActive) return; recActive = true; stage.classList.add('listening'); hint.textContent = 'Listening…'; try { rec.start(); } catch (_) {} };
+  const stop = () => { if (!recActive) return; recActive = false; try { rec.stop(); } catch (_) {} };
+  talkBtn.addEventListener('pointerdown', start);
+  window.addEventListener('pointerup', stop);
+  rec.onresult = (e) => { const t = e.results[0][0].transcript; stop(); ask(t); };
+  rec.onend = rec.onerror = () => { recActive = false; stage.classList.remove('listening'); hint.textContent = 'Tap the mic and ask — try “Alexa, what’s unpaid?”'; };
+}
+
+document.getElementById('send').addEventListener('click', () => { ask(typed.value); typed.value = ''; });
+typed.addEventListener('keydown', (e) => { if (e.key === 'Enter') { ask(typed.value); typed.value = ''; } });
+document.querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', () => ask(b.dataset.ask)));
+
+// --- MCP status pill ---
+(async () => {
+  const el = document.getElementById('mcpStatus'), txt = document.getElementById('mcpText');
+  try {
+    const r = await fetch('/api/health'); const h = await r.json();
+    if (h.mcp === 'connected') { el.className = 'status ok'; txt.textContent = `MCP connected · ${h.tool_count} tools · ${h.profile}`; }
+    else if (h.mcp === 'not_configured') { el.className = 'status warn'; txt.textContent = 'MCP not configured — set MERMAIL_API_KEY'; }
+    else { el.className = 'status bad'; txt.textContent = 'MCP error — see /api/health'; }
+  } catch (_) { el.className = 'status bad'; txt.textContent = 'backend unreachable'; }
+})();
+</script>
+</body>
+</html>
