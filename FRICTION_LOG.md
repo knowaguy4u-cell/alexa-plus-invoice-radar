@@ -79,3 +79,50 @@ severity · workaround · actionable suggestion.
   when set, direct otherwise).
 - **Suggestion:** httpx should tolerate bracketed IPv6 literals in
   `NO_PROXY` instead of raising at client construction.
+
+## 5. `notifications/initialized` empty body crashed our own client — 2026-09-29
+
+- **Tried:** first live authenticated session after minting a real API key —
+  `initialize` → `notifications/initialized` → `tools/list` against the
+  hosted MCP server.
+- **Expected:** the handshake completes; the key-gated test goes green.
+- **Actual:** `initialize` succeeded, then our client raised
+  `MCPProtocolError: non-SSE, non-JSON response: ''` on the
+  `notifications/initialized` POST. The server answers that notification
+  with HTTP 200 and an empty body — correct per the MCP Streamable HTTP
+  spec (notifications get no response) — but our `_post()` treated every
+  empty body as a protocol violation. This bug was latent since commit one:
+  the key-gated test had been skipped for lack of a key, so nothing had
+  ever exercised the notification step against the real server.
+- **Severity:** high for us (the hard-gate path was broken end to end),
+  low as a platform issue (the server behaved correctly).
+- **Workaround:** `_post()` gained an `allow_empty` flag; `connect()` sends
+  `notifications/initialized` with it. Fix verified: 28/28 tests pass and
+  `/api/ask` answers "what is unpaid?" against the live inbox.
+- **Suggestion:** none for Mermail — the lesson is ours: never ship a
+  protocol client whose live path was never run. A skipped key-gated test
+  is a known-unknown, not a passing test.
+
+## 6. `search_emails` free-text field IS `query` — closing entry 3 — 2026-09-29
+
+- **Tried:** `describe_tool("search_emails")` against the live server to
+  resolve entry 3's open question.
+- **Expected:** one of several plausible names (`search`, `q`, `text`).
+- **Actual:** the query object's free-text field is named `query` — i.e.
+  `{"mailboxId": id, "query": {"query": "<free text>", "folder": "inbox",
+  "limit": 25}}`. Our default (`"search"`) was wrong and would have
+  searched unfiltered at demo time. Also confirmed: `sortColumn`,
+  `sortDirection`, and `agent_safe_content` are NOT valid
+  `search_emails` query fields (valid set: query/from/to/subject/
+  date_start/date_end/folder/is_read/is_starred/category/has_attachment/
+  require_scan_status/include_held/metadata_only/page/limit) — dropped
+  from our call. `get_email`'s `query` object DOES accept
+  `require_scan_status` and `agent_safe_content`, so that call was already
+  correct.
+- **Severity:** medium — silent wrong-field failures are demo killers.
+- **Workaround:** default `SEARCH_TEXT_KEY` is now `"query"`
+  (`MERMAIL_SEARCH_KEY` override retained); the app's `search_emails`
+  payload only sends schema-valid fields.
+- **Suggestion:** same as entry 3 — Mermail docs should name the free-text
+  field; the example in the skill reference searches without any text at
+  all, which is how this went unnoticed.

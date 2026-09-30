@@ -31,10 +31,13 @@ FRONTEND_DIR = BASE_DIR / "frontend"
 MAILBOX_ENV = "MERMAIL_MAILBOX"
 DEFAULT_MAILBOX = "nova-demo@mermail.app"  # Tim's live demo mailbox
 
-# search_emails free-text key: public docs say "free text" without naming the
-# field. Verified against the live inputSchema via GET /api/tools once a key
-# exists; override with MERMAIL_SEARCH_KEY if the schema names it differently.
-SEARCH_TEXT_KEY = os.environ.get("MERMAIL_SEARCH_KEY", "search")
+# search_emails free-text key, verified against the live inputSchema
+# 2026-09-29: the query object's free-text field is named "query"
+# (schema: query/from/to/subject/date_start/date_end/folder/is_read/
+# is_starred/category/has_attachment/require_scan_status/include_held/
+# metadata_only/page/limit). Override with MERMAIL_SEARCH_KEY if the
+# schema ever renames it.
+SEARCH_TEXT_KEY = os.environ.get("MERMAIL_SEARCH_KEY", "query")
 
 INVOICE_QUERY = "invoice OR payment due OR amount due OR INV-"
 
@@ -86,10 +89,7 @@ def _collect_claims(client: MermailMCPClient, mailbox_id: str) -> list:
                 SEARCH_TEXT_KEY: INVOICE_QUERY,
                 "folder": "inbox",
                 "limit": 25,
-                "sortColumn": "date",
-                "sortDirection": "DESC",
                 "metadata_only": False,
-                "agent_safe_content": True,
             },
         },
     )

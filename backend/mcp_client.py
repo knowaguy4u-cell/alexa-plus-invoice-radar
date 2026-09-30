@@ -171,8 +171,11 @@ class MermailMCPClient:
         result = message.get("result", {})
         self._server_info = result.get("serverInfo", {})
         # MCP handshake completion: client MUST send notifications/initialized.
+        # It is a notification (no id) — the server answers 200 with an empty
+        # body, which is success.
         self._post(
-            {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}
+            {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
+            allow_empty=True,
         )
         return result
 
@@ -249,8 +252,13 @@ class MermailMCPClient:
             headers["Mcp-Session-Id"] = self._session_id
         return headers
 
-    def _post(self, payload: dict) -> list[dict]:
-        """POST one JSON-RPC message; return parsed response messages."""
+    def _post(self, payload: dict, *, allow_empty: bool = False) -> list[dict]:
+        """POST one JSON-RPC message; return parsed response messages.
+
+        ``allow_empty`` is for JSON-RPC notifications (no id): per the MCP
+        Streamable HTTP spec the server answers those with 202/200 and an
+        empty body, which is success, not a protocol violation.
+        """
         try:
             resp = self._http.post(self.base_url, json=payload, headers=self._headers())
         except httpx.HTTPError as exc:
@@ -277,6 +285,8 @@ class MermailMCPClient:
         content_type = resp.headers.get("content-type", "")
         if "text/event-stream" in content_type:
             return _parse_sse_events(resp.text)
+        if allow_empty and not resp.text.strip():
+            return []
         # Some servers answer plain JSON (e.g. error bodies, single responses).
         try:
             body = resp.json()
